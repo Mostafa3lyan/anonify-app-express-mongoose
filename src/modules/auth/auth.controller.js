@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, signup, signupWithGmail } from "./auth.service.js";
+import { confirmEmail, login, reSendConfirmEmail, signup, signupWithGmail } from "./auth.service.js";
 import { successResponse } from "./../../common/utils/response/success.response.js";
 import * as validators from "./auth.validation.js";
 import { validation } from "../../middleware/validation.middleware.js";
@@ -15,6 +15,28 @@ router.post("/signup", validation(validators.signupSchema), async (req, res, nex
     data: { user },
   });
 });
+
+// confirm email
+router.patch("/confirm-email", validation(validators.confirmEmailSchema), async (req, res, next) => {
+  const account = await confirmEmail(req.body);
+  return successResponse({
+    message: "Email confirmed successfully",
+    res,
+  });
+});
+
+// resend confirm email
+router.patch(
+  "/resend-confirm-email",
+  validation(validators.reSendConfirmEmailSchema),
+  async (req, res, next) => {
+    const account = await reSendConfirmEmail(req.body);
+    return successResponse({
+      message: "We have sent you another otp",
+      res,
+    });
+  },
+);
 
 // signup with gmail
 router.post("/signup/gmail", async (req, res, next) => {

@@ -69,6 +69,14 @@ export const ConflictException = ({
   return ErrorException({ message, status, extra });
 };
 
+export const TooManyRequestsException = ({
+  message = "too many requests",
+  status = 429,
+  extra = undefined,
+}) => {
+  return ErrorException({ message, status, extra });
+};
+
 export const ServerException = ({
   message = "server error",
   status = 500,

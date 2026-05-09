@@ -2,7 +2,7 @@ import {
   ACCESS_TOKEN_EXPIRES_IN,
   REFRESH_TOKEN_EXPIRES_IN,
 } from "../../../config/config.service.js";
-import { LogoutEnum, TokenTypeEnum } from "../../common/enums/security.enum.js";
+import { LogoutEnum } from "../../common/enums/security.enum.js";
 import {
   baseRevokeTokenKey,
   del,
@@ -16,12 +16,10 @@ import {
   NotFoundException,
 } from "../../common/utils/index.js";
 import {
-  createLoginCredentials,
-  decodeToken,
+  createLoginCredentials
 } from "../../common/utils/security/token.security.js";
-import { createOne, deleteMany, findOne } from "../../DB/db.repository.js";
+import { findOne } from "../../DB/db.repository.js";
 import { UserModel } from "../../DB/index.js";
-import TokenModel from "../../DB/models/token.model.js";
 
 const createRevokeToken = async ({ userId, jti, ttl }) => {
   await set(

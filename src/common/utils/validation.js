@@ -3,9 +3,14 @@ import { Types } from "mongoose";
 
 export const generalValidationFields = {
   email: Joi.string().email({
-    minDomainSegments: 2,
-    maxDomainSegments: 3,
-    tlds: { allow: ["com", "net"] },
+    // minDomainSegments: 2,
+    // maxDomainSegments: 3,
+    // tlds: { allow: ["com", "net"] },
+  }),
+
+  otp: Joi.string().length(6).pattern(/^\d+$/).messages({
+    "string.length": "OTP must be 6 digits",
+    "string.pattern.base": "OTP must contain only digits",
   }),
 
   password: Joi.string()

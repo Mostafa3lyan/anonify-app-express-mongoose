@@ -13,6 +13,8 @@ config({ path: resolve(`./config/${envPath[NODE_ENV]}`) });
 
 export const port = process.env.PORT ?? 7000;
 
+export const APP_NAME = process.env.APP_NAME;
+
 // DB Uri
 export const DB_URI = process.env.DB_URI;
 
@@ -34,3 +36,7 @@ export const REFRESH_TOKEN_EXPIRES_IN = parseInt(process.env.REFRESH_TOKEN_EXPIR
 
 // Google
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+
+// Nodemailer
+export const EMAIL_APP_PASSWORD = process.env.EMAIL_APP_PASSWORD;
+export const Email_USER = process.env.Email_USER;

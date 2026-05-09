@@ -2,6 +2,12 @@ import { GOOGLE_CLIENT_ID } from "../../../config/config.service.js";
 import { HashApproachEnum } from "../../common/enums/security.enum.js";
 import { ProviderEnum } from "../../common/enums/user.enum.js";
 import {
+  createOtp,
+  emailEmitter,
+  emailTemplate,
+  sendEmail,
+} from "../../common/utils/index.js";
+import {
   compareHash,
   createLoginCredentials,
   generateEncryption,
@@ -13,9 +19,65 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  TooManyRequestsException,
   UnauthorizedException,
 } from "./../../common/utils/response/error.response.js";
 import { OAuth2Client } from "google-auth-library";
+import {
+  del,
+  expire,
+  get,
+  incr,
+  otpAttemptsKey,
+  otpBlockKey,
+  otpKey,
+  set,
+  ttl,
+} from "./../../common/services/redis.service.js";
+
+// generate otp with attempts limit and block
+export const generateHashedOtp = async (email) => {
+  const MAX_ATTEMPTS = 3;
+  const BLOCK_TTL = 60 * 60; // 1 hour
+  // check block
+  const isBlocked = await get(otpBlockKey(email));
+  if (isBlocked) {
+    const remaining = await ttl(otpBlockKey(email));
+    throw TooManyRequestsException({
+      message: `Too many attempts. Try again in ${Math.ceil(remaining / 60)} minutes.`,
+    });
+  }
+
+  // increment attempts
+  const attempts = await incr(otpAttemptsKey(email));
+  if (attempts === 1) await expire(otpAttemptsKey(email), BLOCK_TTL);
+
+  if (attempts > MAX_ATTEMPTS) {
+    await set(otpBlockKey(email), "1", BLOCK_TTL);
+    await del(otpAttemptsKey(email));
+    throw TooManyRequestsException({
+      message: `Too many attempts. Try again in ${BLOCK_TTL / 60} minutes.`,
+    });
+  }
+
+  const code = await createOtp();
+  await set(otpKey(email), await generateHash({ plainText: `${code}` }), 300);
+  return code;
+};
+
+// send confirm email
+export const sendConfirmEmail = async (email) => {
+  const code = await generateHashedOtp(email);
+
+  emailEmitter.emit("sendConfirmEmail", {
+    to: email,
+    title: "email address",
+    subject: "verify your email",
+    code,
+  });
+
+  return;
+};
 
 // signup
 export const signup = async (inputs) => {
@@ -38,7 +100,77 @@ export const signup = async (inputs) => {
       phone: await generateEncryption({ plainText: phone }),
     },
   });
+
+  await sendConfirmEmail(email);
+
   return user;
+};
+
+// confirm email
+export const confirmEmail = async (inputs) => {
+  const { email, otp } = inputs;
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      confirmEmail: { $exists: false },
+      provider: ProviderEnum.System,
+    },
+  });
+
+  if (!account) {
+    throw NotFoundException({ message: "cannot find account with this email" });
+  }
+
+  const storedHashedOtp = await get(otpKey(email));
+
+  if (!storedHashedOtp) {
+    throw BadRequestException({ message: "OTP has expired or is invalid" });
+  }
+
+  const match = await compareHash({
+    plainText: `${otp}`,
+    cipherText: storedHashedOtp,
+  });
+  if (!match) {
+    throw BadRequestException({ message: "Invalid OTP" });
+  }
+
+  account.confirmEmail = new Date();
+  await account.save();
+
+  await del([otpKey(email), otpAttemptsKey(email), otpBlockKey(email)]);
+
+  return;
+};
+
+// resend confirm email
+export const reSendConfirmEmail = async (inputs) => {
+  const { email } = inputs;
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      confirmEmail: { $exists: false },
+      provider: ProviderEnum.System,
+    },
+  });
+
+  if (!account) {
+    throw NotFoundException({ message: "cannot find account with this email" });
+  }
+
+  const otpTtl = await ttl(otpKey(email));
+
+  if (otpTtl > 0) {
+    throw ConflictException({
+      message: `Please wait ${otpTtl} seconds before requesting a new otp.`,
+    });
+  }
+
+  await sendConfirmEmail(email);
+
+  return;
 };
 
 // login
@@ -47,7 +179,11 @@ export const login = async (inputs, issuer) => {
 
   const user = await findOne({
     model: UserModel,
-    filter: { email, provider: ProviderEnum.System },
+    filter: {
+      email,
+      provider: ProviderEnum.System,
+      confirmEmail: { $exists: true },
+    },
   });
   if (!user) {
     throw UnauthorizedException({ message: "Email or Password is incorrect" });

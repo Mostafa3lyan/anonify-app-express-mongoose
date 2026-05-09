@@ -4,6 +4,7 @@ import {
   ErrorException,
   globalErrorHandling,
   NotFoundException,
+  sendEmail,
   successResponse,
 } from "./common/utils/index.js";
 

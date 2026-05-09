@@ -1,6 +1,5 @@
 import Joi from "joi";
-import { generalValidationFields } from './../../common/utils/index.js';
-
+import { generalValidationFields } from "./../../common/utils/index.js";
 
 export const loginSchema = {
   body: Joi.object()
@@ -16,7 +15,8 @@ export const signupSchema = {
     .append({
       fullName: generalValidationFields.fullName.required(),
       phone: generalValidationFields.phone.required(),
-      confirmPassword: generalValidationFields.confirmPassword()
+      confirmPassword: generalValidationFields
+        .confirmPassword()
         .required()
         .messages({ "any.only": "Confirm password does not match" }),
     })
@@ -25,6 +25,23 @@ export const signupSchema = {
   query: Joi.object()
     .keys({
       lang: Joi.string().valid("ar", "en").required(),
+    })
+    .required(),
+};
+
+export const confirmEmailSchema = {
+  body: Joi.object()
+    .keys({
+      email: generalValidationFields.email.required(),
+      otp: generalValidationFields.otp.required(),
+    })
+    .required(),
+};
+
+export const reSendConfirmEmailSchema = {
+  body: Joi.object()
+    .keys({
+      email: generalValidationFields.email.required(),
     })
     .required(),
 };

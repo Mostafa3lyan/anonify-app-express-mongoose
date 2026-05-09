@@ -1,3 +1,5 @@
+import jwt from "jsonwebtoken";
+import { randomUUID } from 'node:crypto';
 import {
   ACCESS_TOKEN_EXPIRES_IN,
   ACCESS_TOKEN_SECRET_KEY,
@@ -6,20 +8,17 @@ import {
   SYSTEM_ACCESS_TOKEN_SECRET_KEY,
   SYSTEM_REFRESH_TOKEN_SECRET_KEY,
 } from "../../../../config/config.service.js";
-import jwt from "jsonwebtoken";
 import { findOne } from "../../../DB/db.repository.js";
 import { UserModel } from "../../../DB/index.js";
+import { TokenTypeEnum } from "../../enums/security.enum.js";
+import { RoleEnum } from "../../enums/user.enum.js";
+import { get, revokeTokenKey } from "../../services/redis.service.js";
 import {
   BadRequestException,
   ConflictException,
   NotFoundException,
   UnauthorizedException,
 } from "../response/error.response.js";
-import { TokenTypeEnum } from "../../enums/security.enum.js";
-import { RoleEnum } from "../../enums/user.enum.js";
-import { randomUUID } from 'node:crypto';
-import TokenModel from "../../../DB/models/token.model.js";
-import { get, revokeTokenKey } from "../../services/redis.service.js";
 
 export const generateToken = ({
   payload = {},
