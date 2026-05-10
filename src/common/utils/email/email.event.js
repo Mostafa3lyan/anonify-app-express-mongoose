@@ -5,7 +5,7 @@ import { emailTemplate } from "./templete.email.js";
 export const emailEmitter = new EventEmitter();
 
 emailEmitter.on(
-  "sendConfirmEmail",
+  "sendOtpEmail",
   async ({
     to,
     title = "email address",

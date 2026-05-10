@@ -29,7 +29,7 @@ export const signupSchema = {
     .required(),
 };
 
-export const confirmEmailSchema = {
+export const emailOtpSchema = {
   body: Joi.object()
     .keys({
       email: generalValidationFields.email.required(),
@@ -38,10 +38,19 @@ export const confirmEmailSchema = {
     .required(),
 };
 
-export const reSendConfirmEmailSchema = {
+export const emailSchema = {
   body: Joi.object()
     .keys({
       email: generalValidationFields.email.required(),
     })
     .required(),
+};
+
+export const resetPasswordSchema = {
+  body: loginSchema.body.required().append({
+    confirmPassword: generalValidationFields
+      .confirmPassword()
+      .required()
+      .messages({ "any.only": "Confirm password does not match" }),
+  }).required(),
 };

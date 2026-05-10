@@ -24,9 +24,11 @@ const userSchema = new mongoose.Schema(
       required: function () {
         return this.provider === ProviderEnum.System;
       },
+      select: false,
     },
     phone: String,
     confirmEmail: Date,
+    verifiedEmail: Date,
     changeCredentialsTime: Date,
     profilePicture: String,
     profileCoverPictures: [String],
@@ -46,7 +48,6 @@ const userSchema = new mongoose.Schema(
       enum: Object.values(RoleEnum),
       default: RoleEnum.User,
     },
-    
   },
   {
     timestamps: true,

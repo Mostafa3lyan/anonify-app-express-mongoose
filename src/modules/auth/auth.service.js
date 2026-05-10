@@ -14,7 +14,13 @@ import {
   generateHash,
 } from "../../common/utils/security/index.js";
 
-import { createOne, findOne, UserModel } from "../../DB/index.js";
+import {
+  createOne,
+  findOne,
+  findOneAndUpdate,
+  updateOne,
+  UserModel,
+} from "../../DB/index.js";
 import {
   BadRequestException,
   ConflictException,
@@ -24,6 +30,7 @@ import {
 } from "./../../common/utils/response/error.response.js";
 import { OAuth2Client } from "google-auth-library";
 import {
+  baseRevokeTokenKey,
   del,
   expire,
   get,
@@ -66,13 +73,13 @@ export const generateHashedOtp = async (email) => {
 };
 
 // send confirm email
-export const sendConfirmEmail = async (email) => {
+export const sendEmailWithOtp = async (email, title, subject) => {
   const code = await generateHashedOtp(email);
 
-  emailEmitter.emit("sendConfirmEmail", {
+  emailEmitter.emit("sendOtpEmail", {
     to: email,
-    title: "email address",
-    subject: "verify your email",
+    title,
+    subject,
     code,
   });
 
@@ -101,7 +108,7 @@ export const signup = async (inputs) => {
     },
   });
 
-  await sendConfirmEmail(email);
+  await sendEmailWithOtp(email, "email address", "verify your email");
 
   return user;
 };
@@ -168,9 +175,108 @@ export const reSendConfirmEmail = async (inputs) => {
     });
   }
 
-  await sendConfirmEmail(email);
+  await sendEmailWithOtp(email, "email address", "verify your email");
 
   return;
+};
+
+// forgot password
+export const forgotPassword = async (inputs) => {
+  const { email } = inputs;
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      confirmEmail: { $exists: true },
+      provider: ProviderEnum.System,
+    },
+  });
+
+  if (!account) {
+    throw NotFoundException({ message: "cannot find account with this email" });
+  }
+
+  await sendEmailWithOtp(email, "reset code", "reset your password");
+
+  return;
+};
+
+// verify reset password otp
+export const verifyOtp = async (inputs) => {
+  const { email, otp } = inputs;
+
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      confirmEmail: { $exists: true },
+      provider: ProviderEnum.System,
+    },
+  });
+
+  if (!account) {
+    throw NotFoundException({ message: "cannot find account with this email" });
+  }
+
+  const storedHashedOtp = await get(otpKey(email));
+  if (!storedHashedOtp) {
+    throw BadRequestException({ message: "OTP has expired or is invalid" });
+  }
+
+  const match = await compareHash({
+    plainText: `${otp}`,
+    cipherText: storedHashedOtp,
+  });
+  if (!match) {
+    throw BadRequestException({ message: "Invalid OTP" });
+  }
+
+  account.verifiedEmail = new Date();
+  await account.save();
+
+  await del(otpKey(email));
+
+  return account;
+};
+
+// reset password
+export const resetPassword = async (inputs) => {
+  const { email, password } = inputs;
+
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      confirmEmail: { $exists: true },
+      provider: ProviderEnum.System,
+    },
+  });
+
+  if (!account) {
+    throw NotFoundException({
+      message: "Cannot find account with this email",
+    });
+  }
+
+  if (!account.verifiedEmail) {
+    throw BadRequestException({
+      message: "OTP not verified",
+    });
+  }
+
+  account.password = await generateHash({
+    plainText: password,
+  });
+
+  account.verifiedEmail = undefined;
+
+  account.changeCredentialsTime = new Date();
+
+  await account.save();
+
+  await del([otpKey(email), otpAttemptsKey(email), otpBlockKey(email),baseRevokeTokenKey(account._id)]);
+
+  return account;
 };
 
 // login
