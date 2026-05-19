@@ -174,9 +174,14 @@ export const updateOne = async ({ filter, update, options, model } = {}) => {
       updatePipeline: true,
     });
   }
+
+  const { $inc, ...restUpdate } = update;
   return await model.updateOne(
     filter || {},
-    { ...update, $inc: { __v: 1 } },
+    {
+      ...restUpdate,
+      $inc: { ...$inc, __v: 1 }, // merge caller's $inc with __v increment
+    },
     options,
   );
 };

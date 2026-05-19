@@ -33,6 +33,9 @@ import {
   baseRevokeTokenKey,
   del,
   expire,
+  FaAttemptsKey,
+  FaBlockKey,
+  FaKey,
   get,
   incr,
   otpAttemptsKey,
@@ -274,7 +277,12 @@ export const resetPassword = async (inputs) => {
 
   await account.save();
 
-  await del([otpKey(email), otpAttemptsKey(email), otpBlockKey(email),baseRevokeTokenKey(account._id)]);
+  await del([
+    otpKey(email),
+    otpAttemptsKey(email),
+    otpBlockKey(email),
+    baseRevokeTokenKey(account._id),
+  ]);
 
   return account;
 };
@@ -305,6 +313,45 @@ export const login = async (inputs, issuer) => {
     throw UnauthorizedException({ message: "Email or Password is incorrect" });
   }
 
+  if (user.twoFactorVerified) {
+    await requestTwoFactorAuth(user);
+    return { twoFactorRequired: true };
+  }
+
+  return createLoginCredentials(user, issuer);
+};
+
+export const loginConfirm = async ({email, otp}, issuer) => {
+  const user = await findOne({
+    model: UserModel,
+    filter: {
+      email,
+      provider: ProviderEnum.System,
+      confirmEmail: { $exists: true },
+    },
+  });
+  if (!user) {
+    throw UnauthorizedException({ message: "Email or Password is incorrect" });
+  }
+  if (!user.twoFactorVerified) {
+    throw BadRequestException({
+      message: "2FA is not enabled for this account",
+    });
+  }
+  const storedHashedOtp = await get(FaKey(user));
+
+  if (!storedHashedOtp) {
+    throw BadRequestException({ message: "OTP has expired or is invalid" });
+  }
+
+  const match = await compareHash({
+    plainText: `${otp}`,
+    cipherText: storedHashedOtp,
+  });
+  if (!match) {
+    throw BadRequestException({ message: "2FA code is incorrect" });
+  }
+  await del([FaKey(user), FaAttemptsKey(user), FaBlockKey(user)]);
   return createLoginCredentials(user, issuer);
 };
 
@@ -376,4 +423,64 @@ export const loginWithGmail = async (idToken, issuer) => {
     throw NotFoundException({ message: "Not registered account" });
   }
   return createLoginCredentials(user, issuer);
+};
+
+// request 2fa
+export const requestTwoFactorAuth = async (user) => {
+  const MAX_ATTEMPTS = 3;
+  const BLOCK_TTL = 60 * 60; // 1 hour
+
+  // check block
+  const isBlocked = await get(FaBlockKey(user));
+  if (isBlocked) {
+    const remaining = await ttl(FaBlockKey(user));
+    throw TooManyRequestsException({
+      message: `Too many attempts. Try again in ${Math.ceil(remaining / 60)} minutes.`,
+    });
+  }
+
+  // increment attempts
+  const attempts = await incr(FaAttemptsKey(user));
+  if (attempts === 1) await expire(FaAttemptsKey(user), BLOCK_TTL);
+
+  if (attempts > MAX_ATTEMPTS) {
+    await set(FaBlockKey(user), "1", BLOCK_TTL);
+    await del(FaAttemptsKey(user));
+    throw TooManyRequestsException({
+      message: `Too many attempts. Try again in ${BLOCK_TTL / 60} minutes.`,
+    });
+  }
+
+  const code = await createOtp();
+  await set(FaKey(user), await generateHash({ plainText: `${code}` }), 120);
+
+  emailEmitter.emit("sendOtpEmail", {
+    to: user.email,
+    title: "2FA code",
+    subject: "verify 2FA for your account",
+    code,
+  });
+
+  return;
+};
+
+// enable 2fa
+export const enableTwoFactorAuth = async (user, { otp }) => {
+  const storedHashedOtp = await get(FaKey(user));
+
+  if (!storedHashedOtp) {
+    throw BadRequestException({ message: "OTP has expired or is invalid" });
+  }
+
+  const match = await compareHash({
+    plainText: `${otp}`,
+    cipherText: storedHashedOtp,
+  });
+  if (!match) {
+    throw BadRequestException({ message: "Invalid OTP" });
+  }
+  user.twoFactorVerified = true;
+  await user.save();
+  await del(FaKey(user), FaAttemptsKey(user), FaBlockKey(user));
+  return;
 };

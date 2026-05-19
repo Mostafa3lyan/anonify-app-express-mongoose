@@ -1,21 +1,21 @@
 import { Router } from "express";
+import { TokenTypeEnum } from "../../common/enums/security.enum.js";
+import { decodeToken, localFileUpload } from "../../common/utils/index.js";
+import { fileFieldValidation } from "../../common/utils/multer/validation.multer.js";
+import { authentication } from "../../middleware/index.js";
+import { validation } from "../../middleware/validation.middleware.js";
+import { successResponse } from "./../../common/utils/response/index.js";
 import {
   changePassword,
   logout,
   profile,
   profileCoverImage,
   profileImage,
+  removeProfileImage,
   rotateToken,
-  shareProfile,
+  shareProfile
 } from "./user.service.js";
-import { successResponse } from "./../../common/utils/response/index.js";
-import { authentication, authorization } from "../../middleware/index.js";
-import { TokenTypeEnum } from "../../common/enums/security.enum.js";
-import { RoleEnum } from "../../common/enums/user.enum.js";
 import * as validators from "./user.validation.js";
-import { validation } from "../../middleware/validation.middleware.js";
-import { localFileUpload } from "../../common/utils/index.js";
-import { fileFieldValidation } from "../../common/utils/multer/validation.multer.js";
 const router = Router();
 
 // User Profile
@@ -24,7 +24,7 @@ router.get(
   authentication(),
   // authorization([RoleEnum.User, RoleEnum.Admin]),
   async (req, res, next) => {
-    const user = await profile(req.user);    
+    const user = await profile(req.user);
     return successResponse({
       res,
       data: { user },
@@ -41,9 +41,21 @@ router.post("/logout", authentication(), async (req, res, next) => {
 // Share User Profile
 router.get(
   "/:userId/share-profile",
+  async (req, res, next) => {
+    if (req?.headers?.authorization) {
+      const { user, decoded } = await decodeToken({
+        token: req.headers.authorization.split(" ")[1],
+        tokenType: TokenTypeEnum.access,
+      });
+
+      req.user = user;
+      req.decoded = decoded;
+      return next();
+    }
+  },
   validation(validators.shareProfile),
   async (req, res, next) => {
-    const account = await shareProfile(req.params.userId);
+    const account = await shareProfile(req.params.userId, req.user);
     return successResponse({
       res,
       data: { account },
@@ -69,7 +81,7 @@ router.post(
   },
 );
 
-// Profile Image
+// add Profile Image
 router.patch(
   "/profile-image",
   authentication(),
@@ -85,7 +97,20 @@ router.patch(
   },
 );
 
-// Cover Images
+// remove Profile Image
+router.delete(
+  "/remove-profile-image",
+  authentication(),
+  async (req, res, next) => {
+    const account = await removeProfileImage(req.user);
+    return successResponse({
+      message: "Profile image removed successfully",
+      res,
+    });
+  },
+);
+
+// Add Cover Images
 router.patch(
   "/profile-cover-image",
   authentication(),
@@ -101,17 +126,23 @@ router.patch(
   },
 );
 
+// Change Password
 router.patch(
   "/change-password",
   authentication(),
   validation(validators.changePasswordSchema),
   async (req, res, next) => {
-    const credentials = await changePassword(req.body, req.user, `${req.protocol}://${req.host}`);
+    const credentials = await changePassword(
+      req.body,
+      req.user,
+      `${req.protocol}://${req.host}`,
+    );
     return successResponse({
       res,
       data: { ...credentials },
     });
   },
 );
+
 
 export default router;

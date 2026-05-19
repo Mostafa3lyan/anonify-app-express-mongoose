@@ -29,6 +29,14 @@ export const signupSchema = {
     .required(),
 };
 
+export const otpSchema = {
+  body: Joi.object()
+    .keys({
+      otp: generalValidationFields.otp.required(),
+    })
+    .required(),
+};
+
 export const emailOtpSchema = {
   body: Joi.object()
     .keys({
@@ -54,3 +62,4 @@ export const resetPasswordSchema = {
       .messages({ "any.only": "Confirm password does not match" }),
   }).required(),
 };
+

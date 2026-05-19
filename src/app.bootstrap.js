@@ -46,6 +46,6 @@ async function bootstrap() {
   app.use(NotFoundException);
   app.use(ConflictException);
 
-  app.listen(port, () => console.log(`Saraha app listening on port ${port}!`));
+  app.listen(port, () => console.log(`Anonify app listening on port ${port}!`));
 }
 export default bootstrap;

@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { confirmEmail, forgotPassword, login, reSendConfirmEmail, resetPassword, signup, signupWithGmail, verifyOtp } from "./auth.service.js";
+import { confirmEmail, enableTwoFactorAuth, forgotPassword, login, loginConfirm, requestTwoFactorAuth, reSendConfirmEmail, resetPassword, signup, signupWithGmail, verifyOtp } from "./auth.service.js";
 import { successResponse } from "./../../common/utils/response/success.response.js";
 import * as validators from "./auth.validation.js";
 import { validation } from "../../middleware/validation.middleware.js";
+import { authentication } from './../../middleware/index.js';
 const router = Router();
 
 // signup
@@ -93,13 +94,66 @@ router.post("/signup/gmail", async (req, res, next) => {
 });
 
 // login
-router.post("/login", validation(validators.loginSchema), async (req, res, next) => {
-  const credentials = await login(req.body, `${req.protocol}://${req.host}`);
+router.post(
+  "/login",
+  validation(validators.loginSchema),
+  async (req, res, next) => {
+    const result = await login(req.body, `${req.protocol}://${req.host}`);
+
+    if (result.twoFactorRequired) {
+      return successResponse({
+        res,
+        status: 200,
+        message: "2FA code sent to your email. Please verify to continue.",
+      });
+    }
+
+    return successResponse({
+      message: "Logged in successfully",
+      res,
+      data: { ...result },
+    });
+  },
+);
+
+// login confirm (2fa)
+router.post(
+  "/login-confirm",
+  validation(validators.emailOtpSchema),
+  async (req, res, next) => {
+    const credentials = await loginConfirm(
+      req.body,
+      `${req.protocol}://${req.host}`,
+    );
+    return successResponse({
+      message: "logged in successfully",
+      res,
+      data: { ...credentials },
+    });
+  },
+);
+
+// request 2fa code
+router.patch("/request-2fa", authentication(), async (req, res, next) => {
+  const user = await requestTwoFactorAuth(req.user);
   return successResponse({
-    message: "logged in successfully",
+    message: "2fa code sent successfully",
     res,
-    data: { ...credentials },
   });
 });
+
+// verify 2fa code and enable 2fa
+router.patch(
+  "/enable-2fa",
+  authentication(),
+  validation(validators.otpSchema),
+  async (req, res, next) => {
+    const user = await enableTwoFactorAuth(req.user, req.body);
+    return successResponse({
+      message: "2fa enabled successfully",
+      res,
+    });
+  },
+);
 
 export default router;
