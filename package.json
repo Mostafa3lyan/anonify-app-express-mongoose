@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "./src/main.js",
   "type": "module",
+  "engines": {
+    "node": "22.17.0"
+  },
   "scripts": {
     "start:dev": "cross-env NODE_ENV=development  node --watch-path=. ./src/main.js",
     "start:prod": "cross-env NODE_ENV=production  node  ./src/main.js"
@@ -18,7 +21,9 @@
     "cross-env": "^10.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
     "google-auth-library": "^10.6.2",
+    "helmet": "^8.1.0",
     "joi": "^18.1.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.3.0",
