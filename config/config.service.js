@@ -40,3 +40,6 @@ export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 // Nodemailer
 export const EMAIL_APP_PASSWORD = process.env.EMAIL_APP_PASSWORD;
 export const Email_USER = process.env.Email_USER;
+
+export const MAGIC_LINK_SECRET = process.env.MAGIC_LINK_SECRET;
+export const CliENT_URL = process.env.CLIENT_URL;

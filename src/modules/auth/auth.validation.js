@@ -29,6 +29,15 @@ export const signupSchema = {
     .required(),
 };
 
+export const forgotPasswordSchema = {
+  body: Joi.object()
+    .keys({
+      email: generalValidationFields.email.required(),
+      method: Joi.string().valid("otp", "link").default("otp").required(),
+    })
+    .required(),
+};
+
 export const otpSchema = {
   body: Joi.object()
     .keys({
@@ -55,11 +64,13 @@ export const emailSchema = {
 };
 
 export const resetPasswordSchema = {
-  body: loginSchema.body.required().append({
-    confirmPassword: generalValidationFields
-      .confirmPassword()
-      .required()
-      .messages({ "any.only": "Confirm password does not match" }),
-  }).required(),
+  body: loginSchema.body
+    .required()
+    .append({
+      confirmPassword: generalValidationFields
+        .confirmPassword()
+        .required()
+        .messages({ "any.only": "Confirm password does not match" }),
+    })
+    .required(),
 };
-

@@ -19,6 +19,9 @@ export const FaKey = (user) => `2fa::request::${user._id}`;
 export const FaAttemptsKey = (user) => `2fa::attempts::${user._id}`;
 export const FaBlockKey = (user) => `2fa::blocked::${user._id}`;
 
+// 
+export const magicLinkRevokeKey = (token) => `magic::revoked::${token}`;
+
 // Set data in Redis with an optional time-to-live (TTL)
 export const set = async (key, value, ttl) => {
   try {

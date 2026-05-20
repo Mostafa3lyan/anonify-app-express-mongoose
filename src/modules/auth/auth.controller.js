@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { confirmEmail, enableTwoFactorAuth, forgotPassword, login, loginConfirm, requestTwoFactorAuth, reSendConfirmEmail, resetPassword, signup, signupWithGmail, verifyOtp } from "./auth.service.js";
+import { confirmEmail, enableTwoFactorAuth, forgotPassword, login, loginConfirm, requestTwoFactorAuth, reSendConfirmEmail, resetPassword, signup, signupWithGmail, verifyMagicLink, verifyOtp } from "./auth.service.js";
 import { successResponse } from "./../../common/utils/response/success.response.js";
 import * as validators from "./auth.validation.js";
 import { validation } from "../../middleware/validation.middleware.js";
@@ -46,22 +46,22 @@ router.patch(
 // forgot password
 router.post(
   "/forgot-password",
-  validation(validators.emailSchema),
+  validation(validators.forgotPasswordSchema),
   async (req, res, next) => {
     await forgotPassword(req.body);
     return successResponse({
-      message: "We have sent you an otp",
+      message: "If this email exists, a reset link or code has been sent",
       res,
     });
   },
 );
 
-// verify reset password otp
+// verify otp (method: otp)
 router.post(
   "/verify-otp",
   validation(validators.emailOtpSchema),
   async (req, res, next) => {
-    const account = await verifyOtp(req.body);
+    await verifyOtp(req.body);
     return successResponse({
       message: "OTP verified successfully",
       res,
@@ -69,15 +69,31 @@ router.post(
   },
 );
 
-// reset password
-router.patch("/reset-password", validation(validators.resetPasswordSchema), async (req, res, next) => {
-  const account = await resetPassword(req.body);
-  return successResponse({
-    message: "Password reset successfully",
-    res,
-    data: { user: account },
-  });
-});
+// verify magic link (method: magic-link)
+router.get(
+  "/verify-link",
+  async (req, res, next) => {
+    await verifyMagicLink(req.query.token);
+    return successResponse({
+      message: "Email verified successfully",
+      res,
+    });
+  },
+);
+
+// reset password (shared)
+router.patch(
+  "/reset-password",
+  validation(validators.resetPasswordSchema),
+  async (req, res, next) => {
+    const account = await resetPassword(req.body);
+    return successResponse({
+      message: "Password reset successfully",
+      res,
+      data: { user: account },
+    });
+  },
+);
 
 // signup with gmail
 router.post("/signup/gmail", async (req, res, next) => {

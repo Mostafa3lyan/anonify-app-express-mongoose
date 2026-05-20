@@ -1,10 +1,15 @@
-import { GOOGLE_CLIENT_ID } from "../../../config/config.service.js";
+import {
+  CliENT_URL,
+  GOOGLE_CLIENT_ID,
+  MAGIC_LINK_SECRET,
+} from "../../../config/config.service.js";
 import { HashApproachEnum } from "../../common/enums/security.enum.js";
 import { ProviderEnum } from "../../common/enums/user.enum.js";
 import {
   createOtp,
   emailEmitter,
   emailTemplate,
+  magicLinkTemplate,
   sendEmail,
 } from "../../common/utils/index.js";
 import {
@@ -12,6 +17,8 @@ import {
   createLoginCredentials,
   generateEncryption,
   generateHash,
+  generateToken,
+  verifyToken,
 } from "../../common/utils/security/index.js";
 
 import {
@@ -38,6 +45,7 @@ import {
   FaKey,
   get,
   incr,
+  magicLinkRevokeKey,
   otpAttemptsKey,
   otpBlockKey,
   otpKey,
@@ -183,9 +191,27 @@ export const reSendConfirmEmail = async (inputs) => {
   return;
 };
 
+// send magic link
+export const sendMagicLink = async (email, userId) => {
+  const token = generateToken({
+    payload: { userId },
+    secret: MAGIC_LINK_SECRET,
+    expiresIn: "15m",
+  });
+
+  const link = `${CliENT_URL}/reset-password?token=${token}`;
+
+  await sendEmail({
+    to: email,
+    subject: "reset your password",
+    html: magicLinkTemplate(link),
+  });
+};
+
 // forgot password
 export const forgotPassword = async (inputs) => {
-  const { email } = inputs;
+  const { email, method = "otp" } = inputs; // method: "otp" | "link"
+
   const account = await findOne({
     model: UserModel,
     filter: {
@@ -196,15 +222,19 @@ export const forgotPassword = async (inputs) => {
   });
 
   if (!account) {
-    throw NotFoundException({ message: "cannot find account with this email" });
+    throw NotFoundException({ message: "Cannot find account with this email" });
   }
 
-  await sendEmailWithOtp(email, "reset code", "reset your password");
+  if (method === "link") {
+    await sendMagicLink(email, account._id);
+  } else {
+    await sendEmailWithOtp(email, "reset code", "reset your password");
+  }
 
   return;
 };
 
-// verify reset password otp
+// verify otp
 export const verifyOtp = async (inputs) => {
   const { email, otp } = inputs;
 
@@ -218,7 +248,7 @@ export const verifyOtp = async (inputs) => {
   });
 
   if (!account) {
-    throw NotFoundException({ message: "cannot find account with this email" });
+    throw NotFoundException({ message: "Cannot find account with this email" });
   }
 
   const storedHashedOtp = await get(otpKey(email));
@@ -236,8 +266,44 @@ export const verifyOtp = async (inputs) => {
 
   account.verifiedEmail = new Date();
   await account.save();
-
   await del(otpKey(email));
+
+  return account;
+};
+
+// verify magic link
+export const verifyMagicLink = async (token) => {
+  let payload;
+  try {
+    payload = verifyToken({ token, secret: MAGIC_LINK_SECRET });
+  } catch {
+    throw BadRequestException({ message: "Magic link is invalid or expired" });
+  }
+
+  const account = await findOne({
+    model: UserModel,
+    filter: {
+      _id: payload.userId,
+      confirmEmail: { $exists: true },
+      provider: ProviderEnum.System,
+    },
+  });
+
+  if (!account) {
+    throw NotFoundException({ message: "Cannot find account" });
+  }
+
+  // one-time use — check token hasn't been used already
+  const isRevoked = await get(magicLinkRevokeKey(token));
+  if (isRevoked) {
+    throw BadRequestException({ message: "Magic link has already been used" });
+  }
+
+  account.verifiedEmail = new Date();
+  await account.save();
+
+  // revoke immediately so it can't be reused
+  await set(magicLinkRevokeKey(token), "1", 60 * 15); // keep revoke record for 15min
 
   return account;
 };
@@ -256,25 +322,27 @@ export const resetPassword = async (inputs) => {
   });
 
   if (!account) {
-    throw NotFoundException({
-      message: "Cannot find account with this email",
-    });
+    throw NotFoundException({ message: "Cannot find account with this email" });
   }
 
   if (!account.verifiedEmail) {
+    throw BadRequestException({ message: "OTP not verified" });
+  }
+
+  const isExpired =
+    Date.now() - new Date(account.verifiedEmail).getTime() > 10 * 60 * 1000;
+
+  if (isExpired) {
+    account.verifiedEmail = undefined;
+    await account.save();
     throw BadRequestException({
-      message: "OTP not verified",
+      message: "Verification expired, please request a new code",
     });
   }
 
-  account.password = await generateHash({
-    plainText: password,
-  });
-
+  account.password = await generateHash({ plainText: password });
   account.verifiedEmail = undefined;
-
   account.changeCredentialsTime = new Date();
-
   await account.save();
 
   await del([
@@ -321,7 +389,7 @@ export const login = async (inputs, issuer) => {
   return createLoginCredentials(user, issuer);
 };
 
-export const loginConfirm = async ({email, otp}, issuer) => {
+export const loginConfirm = async ({ email, otp }, issuer) => {
   const user = await findOne({
     model: UserModel,
     filter: {
