@@ -1,8 +1,6 @@
 # Anonify (Saraha App)
 
-A **Node.js / Express** REST API for anonymous messaging and user profiles—similar in spirit to [Saraha](https://saraha.com) / Sarahah. Users can share a public profile link, receive messages from anyone (signed-in or not), and manage their account with email verification, optional two-factor authentication, and Google sign-in.
-
-The package name is **Anonify**; the repository folder is `saraha-app`.
+A **Node.js / Express** REST API for anonymous messaging and user profiles—similar in spirit to [Saraha](https://www.sarahah.com) / Sarahah. Users can share a public profile link, receive messages from anyone (signed-in or not), and manage their account with email verification, optional two-factor authentication, and Google sign-in.
 
 ---
 
@@ -99,50 +97,6 @@ Environment files live under `config/` and are loaded by `NODE_ENV`:
 | `development`   | `config/.env.development`     |
 | `production`    | `config/.env.production`      |
 
-Create the appropriate file with the variables below.
-
-### Environment variables
-
-```env
-# Server
-PORT=7000
-APP_NAME=Anonify
-
-# MongoDB
-DB_URI=mongodb://localhost:27017/anonify
-
-# Redis
-REDIS_URI=redis://localhost:6379
-
-# Security
-SALT_ROUND=10
-IV_LENGTH=16
-ENC_SECRET_KEY=<32-byte-key-as-string>
-Encryption_ALGORITHM=aes-256-cbc
-
-# JWT
-ACCESS_TOKEN_SECRET_KEY=<secret>
-REFRESH_TOKEN_SECRET_KEY=<secret>
-SYSTEM_ACCESS_TOKEN_SECRET_KEY=<secret>
-SYSTEM_REFRESH_TOKEN_SECRET_KEY=<secret>
-ACCESS_TOKEN_EXPIRES_IN=3600
-REFRESH_TOKEN_EXPIRES_IN=604800
-
-# Google OAuth (ID token verification)
-GOOGLE_CLIENT_ID=<your-google-client-id>
-
-# Email (Nodemailer)
-Email_USER=your-email@gmail.com
-EMAIL_APP_PASSWORD=<gmail-app-password>
-
-# Password reset magic link
-MAGIC_LINK_SECRET=<secret>
-CLIENT_URL=http://localhost:3000
-```
-
-> **Note:** `ENC_SECRET_KEY` is read as a Buffer in code—use a fixed-length key suitable for your chosen `Encryption_ALGORITHM`.
-
----
 
 ## Running the app
 
@@ -287,7 +241,3 @@ Messages without a sender are stored with no `senderId` (fully anonymous).
 ISC
 
 ---
-
-## Author
-
-Route Backend Assignment — Session 10 (Saraha App)
